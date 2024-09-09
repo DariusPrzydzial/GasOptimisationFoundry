@@ -5,6 +5,7 @@ pragma solidity ^0.8.24;
 // 442 882 -> solidity 0.8.27
 // 442 253 -> solidity 0.8.24
 contract GasContract {
+    address private immutable contractOwner;
     mapping(address => uint256) whiteListStruct;
 
     address[5] public administrators;
@@ -15,52 +16,53 @@ contract GasContract {
     event WhiteListTransfer(address indexed);
 
     error TierGraterThan255();
+    error NotContractOwner();
 
     constructor(address[] memory _admins, uint256 _totalSupply) payable {
-        balances[msg.sender] = _totalSupply;
-        for (uint256 ii = 0; ii < administrators.length; ii++) {
-            administrators[ii] =_admins[ii];
+        contractOwner = msg.sender;
+        
+        assembly {
+            
+            // Calculate the storage slot for balances[msg.sender]
+            mstore(0x0, caller())
+            mstore(0x20, balances.slot)
+            let balancesSlot := keccak256(0x0, 0x40)
+
+            // Store _totalSupply in the calculated storage slot
+            sstore(balancesSlot, _totalSupply)
+
+            // Loop through _admins and set administrators
+            for { let i := 0 } lt(i, 5) { i := add(i, 1) } {
+                let admin := mload(add(add(_admins, 0x20), mul(i, 0x20)))
+                sstore(add(administrators.slot, i), admin)
+            }
         }
     }
 
-    // This function acts as a onlyOwner modifier, 
-    // You don't need to check for all administrators.
-    function checkForAdmin(address _user) public view returns (bool) {
-        return administrators[4] == _user;
+    function checkForAdmin(address _user) external view returns (bool) {
+        return _user == contractOwner;
     }
 
     function balanceOf(address _user) public view returns (uint256) {
         return balances[_user];
     }
 
-    function transfer(
-        address _recipient,
-        uint256 _amount,
-        string calldata
-    ) public {
-        // idk if tests don't test the case where you try to transfer more than you have deliberately or it's just an missed use case
-        // anyway, let's profit from it and wrap this in an unchecked block
+    function transfer(address _recipient, uint256 _amount, string calldata) public {
         unchecked {
             balances[msg.sender] -= _amount;
             balances[_recipient] += _amount;
         }
     }
 
-    function addToWhitelist(
-        address _userAddrs, 
-        uint256 _tier
-    ) public {
-        require(checkForAdmin(msg.sender));
+    function addToWhitelist(address _userAddrs, uint256 _tier) public {
+        if (msg.sender != contractOwner) revert NotContractOwner();
         if(_tier >= 255) revert TierGraterThan255();
         whitelist[_userAddrs] = _tier > 3 ? 3 : _tier;
         emit AddedToWhitelist(_userAddrs, _tier);
     }
 
     // Making this function external decreases gas usage; but this doesn't happen for other functions (eg. balanceOf)
-    function whiteTransfer(
-        address _recipient,
-        uint256 _amount
-    ) external {
+    function whiteTransfer(address _recipient, uint256 _amount) external {
         unchecked {
             uint256 usersTier = whitelist[msg.sender];
             whiteListStruct[msg.sender] = _amount;
