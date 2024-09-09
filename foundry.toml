@@ -2,6 +2,9 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
+optimizer_runs = 1
 
+# This decrease the deployment cost from 440_545 to 388_806
+via_ir = true
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
