@@ -40,7 +40,7 @@ contract GasContract is Ownable {
         uint256 blockNumber;
         address updatedBy;
     }
-    uint256 wasLastOdd = 1;
+    bool wasLastOdd = true;
     mapping(address => uint256) public isOddWhitelistUser;
 
     struct ImportantStruct {
@@ -62,6 +62,7 @@ contract GasContract is Ownable {
     error IdZero();
     error AmountNotGreaterThanZero();
     error TierGraterThan255();
+    error AmountNotGraterThan3();
 
     modifier onlyAdminOrOwner() {
         if (contractOwner != msg.sender || !checkForAdmin(msg.sender)) {
@@ -205,49 +206,20 @@ contract GasContract is Ownable {
         }
     }
 
-    function addToWhitelist(
-        address _userAddrs,
-        uint256 _tier
-    ) public onlyAdminOrOwner {
+    function addToWhitelist(address _userAddrs, uint256 _tier) public onlyAdminOrOwner {
         if(_tier >= 255) revert TierGraterThan255();
-        whitelist[_userAddrs] = _tier;
         if (_tier > 3) {
-            whitelist[_userAddrs] -= _tier;
             whitelist[_userAddrs] = 3;
-        } else if (_tier == 1) {
-            whitelist[_userAddrs] -= _tier;
-            whitelist[_userAddrs] = 1;
-        } else if (_tier > 0 && _tier < 3) {
-            whitelist[_userAddrs] -= _tier;
-            whitelist[_userAddrs] = 2;
-        }
-        uint256 wasLastAddedOdd = wasLastOdd;
-        if (wasLastAddedOdd == 1) {
-            wasLastOdd = 0;
-            isOddWhitelistUser[_userAddrs] = wasLastAddedOdd;
-        } else if (wasLastAddedOdd == 0) {
-            wasLastOdd = 1;
-            isOddWhitelistUser[_userAddrs] = wasLastAddedOdd;
         } else {
-            revert("Contract hacked, imposible, call help");
+            whitelist[_userAddrs] = _tier;
         }
         emit AddedToWhitelist(_userAddrs, _tier);
     }
 
-    function whiteTransfer(
-        address _recipient,
-        uint256 _amount
-    ) public checkIfWhiteListed {
+    function whiteTransfer(address _recipient, uint256 _amount) public checkIfWhiteListed {
         whiteListStruct[msg.sender] = ImportantStruct(msg.sender, true, _amount, 0, 0, 0);
-
-        require(
-            balances[msg.sender] >= _amount,
-            "Gas Contract - whiteTransfers function - Sender has insufficient Balance"
-        );
-        require(
-            _amount > 3,
-            "Gas Contract - whiteTransfers function - amount to send have to be bigger than 3"
-        );
+        if (balances[msg.sender] < _amount) revert AmountExceedsBalance();
+        if (_amount <= 3) revert AmountNotGraterThan3();
         balances[msg.sender] -= _amount;
         balances[_recipient] += _amount;
         balances[msg.sender] += whitelist[msg.sender];
@@ -265,11 +237,22 @@ contract GasContract is Ownable {
         );
     }
 
-    receive() external payable {
-        payable(msg.sender).transfer(msg.value);
-    }
+    // receive() external payable {
+    //     payable(msg.sender).transfer(msg.value);
+    // }
 
-    fallback() external payable {
-        payable(msg.sender).transfer(msg.value);
-    }
+    // fallback() external payable {
+    //     payable(msg.sender).transfer(msg.value);
+    // }
 }
+
+
+// team,score,github
+// G4,419984,https://github.com/Ultra-Tech-code/Gas-optimization
+// G5,440545,https://gist.github.com/AlexCZM/5130a1e510c4c69b6f980d6b3842f21c
+// G2,448049,https://github.com/brolag/gas-optimization
+// G7,496821,https://github.com/RichuAK/GasOptimisationFoundry
+// G6,624111,https://github.com/bogdoslavik/GasOptimisationFoundry
+// G8,626888,https://github.com/rakimsth/ExpertSolidityBootcamp
+// G1,1901618,https://github.com/dvgui/AdvancedSolOpt
+// G3,2270853,https://github.com/Nandinho42069/gasOptimiser/blob/main/GOptimizer/src/Gas.sol
